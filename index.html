@@ -284,6 +284,10 @@
   <span class="status-badge" id="conn-badge">Disconnected</span>
   <span class="status-badge calib-on" id="calib-badge" style="display:none">CALIB MODE</span>
   <div class="header-right">
+    <div style="display:flex;align-items:center;gap:6px;background:var(--input-bg);padding:3px 8px;border-radius:6px;border:1px solid var(--border);">
+      <label for="cfg-group-filter" style="font-size:11px;color:var(--text-dim);font-weight:600;">GROUP</label>
+      <input type="number" id="cfg-group-filter" placeholder="All" min="0" max="255" style="width:54px;padding:2px 4px;font-size:12px;font-weight:bold;text-align:center;background:transparent;border:none;color:#38bdf8;outline:none;">
+    </div>
     <span class="device-name" id="hdr-device-name"></span>
     <button class="btn btn-primary" id="btn-connect">Connect</button>
     <button class="btn btn-ghost"   id="btn-disconnect" style="display:none">Disconnect</button>
@@ -301,6 +305,7 @@
   <button class="tab-btn" data-tab="max35103-regs">MAX35103 Regs</button>
   <button class="tab-btn" data-tab="tof-diag">TOF Diagnostics</button>
   <button class="tab-btn" data-tab="terminal">Terminal</button>
+  <button class="tab-btn" data-tab="batch-mode" style="color:#38bdf8;font-weight:600;">⚡ Auto-Pilot Batch</button>
 </div>
 
 <!-- ─── MAIN BODY ────────────────────────────────────────────────────────── -->
@@ -1315,6 +1320,88 @@
     </div>
   </div>
   -->
+<!-- ══ TAB: AUTO-PILOT PRODUCTION BATCH ════════════════════════════════════ -->
+<div class="tab-content" id="tab-batch-mode">
+  <div class="card" style="border:1px solid #3b82f6;background:#131a29;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div>
+        <h2 style="color:#60a5fa;margin-bottom:4px;">Production Auto-Pilot Batch Configurator</h2>
+        <p style="font-size:12px;color:var(--text-dim);">Automatically scan, filter by Group ID, connect, execute commands, verify ACKs, and export configuration reports without manual menu clicks.</p>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-success" id="btn-batch-start" style="font-weight:bold;padding:8px 18px;">▶ Start Auto-Batch (Spacebar)</button>
+        <button class="btn btn-danger" id="btn-batch-stop" style="display:none;">⏹ Stop Batch</button>
+        <button class="btn btn-ghost" id="btn-batch-export">📥 Export CSV Log</button>
+      </div>
+    </div>
+
+    <!-- Batch Control Parameters -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px;margin-bottom:16px;background:var(--input-bg);padding:14px;border-radius:8px;border:1px solid var(--border);">
+      <div>
+        <label style="font-size:11px;color:var(--text-dim);display:block;margin-bottom:4px;">TARGET GROUP ID</label>
+        <input type="number" id="batch-target-group" value="9" min="0" max="255" style="font-weight:bold;font-size:14px;color:#38bdf8;">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-dim);display:block;margin-bottom:4px;">FLOOR RANGE (FROM - TO)</label>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <input type="number" id="batch-floor-from" value="1" min="1" max="255" style="width:70px;">
+          <span style="color:var(--text-dim);">to</span>
+          <input type="number" id="batch-floor-to" value="36" min="1" max="255" style="width:70px;">
+        </div>
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-dim);display:block;margin-bottom:4px;">ACTION PROFILE</label>
+        <select id="batch-profile" style="font-size:12px;">
+          <option value="READ_VERIFY">1. Read Meter & Verify FW (Safe)</option>
+          <option value="CFG_INTERVAL">2. Set Send Interval (e.g. 900s / 300s)</option>
+          <option value="CFG_ALWAYS_ON">3. Set Normal Sleep (ALWAYS_ON=0)</option>
+          <option value="CUSTOM">4. Custom Commands Queue</option>
+        </select>
+      </div>
+      <div id="batch-profile-param-box">
+        <label style="font-size:11px;color:var(--text-dim);display:block;margin-bottom:4px;" id="batch-param-label">PROFILE PARAMETER</label>
+        <input type="text" id="batch-param-val" value="900" style="font-size:12px;">
+      </div>
+    </div>
+
+    <!-- Custom Command Queue Editor -->
+    <div id="batch-custom-cmds-div" style="display:none;margin-bottom:16px;">
+      <label style="font-size:11px;color:var(--text-dim);display:block;margin-bottom:4px;">CUSTOM SPP COMMANDS (One per line):</label>
+      <textarea id="batch-custom-cmds" rows="3" style="width:100%;background:var(--input-bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px;font-family:var(--mono);font-size:12px;">GET_FW_VERSION
+STATUS
+GET_METER_ALL</textarea>
+    </div>
+
+    <!-- Batch Live Status Bar -->
+    <div style="display:flex;align-items:center;gap:12px;background:#1a2333;padding:10px 14px;border-radius:6px;border:1px solid #2e4060;margin-bottom:14px;">
+      <span style="font-size:12px;color:var(--text-dim);">Batch Progress:</span>
+      <span id="batch-status-text" style="font-weight:600;font-size:13px;color:#38bdf8;">Ready. Press Start or hit Spacebar to link next node.</span>
+      <span id="batch-counter" style="margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--text-dim);">Completed: 0 | Remaining: 0</span>
+    </div>
+
+    <!-- Batch Records Table -->
+    <div style="max-height:360px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;text-align:left;">
+        <thead>
+          <tr style="background:var(--card);color:var(--text-dim);border-bottom:1px solid var(--border);position:sticky;top:0;">
+            <th style="padding:8px 10px;">Time</th>
+            <th style="padding:8px 10px;">Device Name</th>
+            <th style="padding:8px 10px;">Floor</th>
+            <th style="padding:8px 10px;">FW</th>
+            <th style="padding:8px 10px;">Total Volume (L)</th>
+            <th style="padding:8px 10px;">Flow (L/min)</th>
+            <th style="padding:8px 10px;">Commands Sent</th>
+            <th style="padding:8px 10px;">Status</th>
+          </tr>
+        </thead>
+        <tbody id="batch-records-tbody">
+          <tr><td colspan="8" style="text-align:center;padding:16px;color:var(--text-dim);">No batch records yet. Connect devices to auto-populate.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 </div><!-- end .main-body -->
 </div><!-- end .app -->
 
@@ -1453,9 +1540,22 @@ document.getElementById('btn-connect').addEventListener('click', async () => {
     return;
   }
   try {
-    log('Scanning for MIRA MESH devices…', 'log-info');
+    const grpInput = document.getElementById('cfg-group-filter')?.value?.trim();
+    let filters = [{ services: [SPP_SVC] }];
+    if (grpInput !== '' && !isNaN(parseInt(grpInput))) {
+      const gNum = parseInt(grpInput);
+      const gPrefix = String(gNum).padStart(3, '0');
+      log(`Scanning specifically for Group ${gNum} (FL${gPrefix}* / ST${gPrefix}*)…`, 'log-info');
+      filters = [
+        { namePrefix: 'FL' + gPrefix, services: [SPP_SVC] },
+        { namePrefix: 'ST' + gPrefix, services: [SPP_SVC] }
+      ];
+    } else {
+      log('Scanning for all MIRA MESH devices…', 'log-info');
+    }
+
     bleDevice = await navigator.bluetooth.requestDevice({
-      filters: [{ services: [SPP_SVC] }],
+      filters: filters,
       optionalServices: [SPP_SVC]
     });
     bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
@@ -3257,6 +3357,317 @@ updateCalibUI();
 const selectMonthEl = document.getElementById('daily-read-month');
 if (selectMonthEl) selectMonthEl.value = dailyLogsSelectedMonth;
 log('MIRA MESH Configurator loaded. Click "Connect" to begin.', 'log-info');
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * PRODUCTION AUTO-PILOT BATCH SYSTEM
+ * ═══════════════════════════════════════════════════════════════════════════ */
+let batchRunning = false;
+let batchRecords = [];
+let batchProcessedFloors = new Set();
+
+// Synchronize Group filter between Header and Batch tab
+document.getElementById('cfg-group-filter')?.addEventListener('input', (e) => {
+  const bTg = document.getElementById('batch-target-group');
+  if (bTg) bTg.value = e.target.value;
+});
+document.getElementById('batch-target-group')?.addEventListener('input', (e) => {
+  const hG = document.getElementById('cfg-group-filter');
+  if (hG) hG.value = e.target.value;
+});
+
+// Profile switcher
+document.getElementById('batch-profile')?.addEventListener('change', (e) => {
+  const pBox = document.getElementById('batch-profile-param-box');
+  const pLbl = document.getElementById('batch-param-label');
+  const pVal = document.getElementById('batch-param-val');
+  const cDiv = document.getElementById('batch-custom-cmds-div');
+  
+  if (cDiv) cDiv.style.display = e.target.value === 'CUSTOM' ? 'block' : 'none';
+  if (pBox) pBox.style.display = e.target.value === 'CUSTOM' ? 'none' : 'block';
+
+  if (e.target.value === 'READ_VERIFY') {
+    if (pLbl) pLbl.textContent = 'PROFILE PARAMETER';
+    if (pVal) { pVal.value = 'None (Read-Only)'; pVal.disabled = true; }
+  } else if (e.target.value === 'CFG_INTERVAL') {
+    if (pLbl) pLbl.textContent = 'INTERVAL (SECONDS)';
+    if (pVal) { pVal.value = '900'; pVal.disabled = false; }
+  } else if (e.target.value === 'CFG_ALWAYS_ON') {
+    if (pLbl) pLbl.textContent = 'ALWAYS ON (0=Sleep, 1=Active)';
+    if (pVal) { pVal.value = '0'; pVal.disabled = false; }
+  }
+});
+
+// Audio notification chime
+function playBatchChime(success = true) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    if (success) {
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+      osc.frequency.setValueAtTime(880.00, ctx.currentTime + 0.1); // A5
+      gain.gain.setValueAtTime(0.15, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.35);
+    } else {
+      osc.frequency.setValueAtTime(329.63, ctx.currentTime); // E4
+      osc.frequency.setValueAtTime(220.00, ctx.currentTime + 0.15); // A3
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.4);
+    }
+  } catch(e) {}
+}
+
+// Add Keyboard Shortcut: Spacebar triggers Next Node in Batch
+window.addEventListener('keydown', (e) => {
+  // Only trigger if in batch tab or batch is running and not typing in an input
+  const activeTab = document.querySelector('.tab-btn.active')?.dataset?.tab;
+  if (e.code === 'Space' && (activeTab === 'batch-mode' || batchRunning)) {
+    if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+    e.preventDefault();
+    if (!batchRunning) {
+      startAutoBatch();
+    } else if (!connected) {
+      processNextBatchDevice();
+    }
+  }
+});
+
+document.getElementById('btn-batch-start')?.addEventListener('click', startAutoBatch);
+document.getElementById('btn-batch-stop')?.addEventListener('click', stopAutoBatch);
+document.getElementById('btn-batch-export')?.addEventListener('click', exportBatchCsv);
+
+function updateBatchCounter() {
+  const fromF = parseInt(document.getElementById('batch-floor-from')?.value || 1);
+  const toF = parseInt(document.getElementById('batch-floor-to')?.value || 36);
+  const total = Math.max(1, toF - fromF + 1);
+  const done = batchProcessedFloors.size;
+  const rem = Math.max(0, total - done);
+  const el = document.getElementById('batch-counter');
+  if (el) el.textContent = `Completed: ${done}/${total} | Remaining: ${rem}`;
+}
+
+async function startAutoBatch() {
+  if (!navigator.bluetooth) {
+    alert('Web Bluetooth is required for auto-pilot batch configuration.');
+    return;
+  }
+  batchRunning = true;
+  document.getElementById('btn-batch-start').style.display = 'none';
+  document.getElementById('btn-batch-stop').style.display = '';
+  document.getElementById('batch-status-text').textContent = 'Auto-Pilot Active: Connecting next node in group...';
+  updateBatchCounter();
+  await processNextBatchDevice();
+}
+
+function stopAutoBatch() {
+  batchRunning = false;
+  document.getElementById('btn-batch-start').style.display = '';
+  document.getElementById('btn-batch-stop').style.display = 'none';
+  document.getElementById('batch-status-text').textContent = 'Batch stopped by operator.';
+}
+
+async function processNextBatchDevice() {
+  if (!batchRunning) return;
+  const grpNum = parseInt(document.getElementById('batch-target-group')?.value || '9');
+  const gPrefix = String(grpNum).padStart(3, '0');
+  
+  // Set header filter too
+  const hG = document.getElementById('cfg-group-filter');
+  if (hG) hG.value = grpNum;
+
+  document.getElementById('batch-status-text').textContent = `Prompting for next Group ${grpNum} device (FL${gPrefix}*)...`;
+
+  try {
+    bleDevice = await navigator.bluetooth.requestDevice({
+      filters: [
+        { namePrefix: 'FL' + gPrefix, services: [SPP_SVC] },
+        { namePrefix: 'ST' + gPrefix, services: [SPP_SVC] }
+      ],
+      optionalServices: [SPP_SVC]
+    });
+
+    bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+    document.getElementById('batch-status-text').textContent = `Connecting to ${bleDevice.name}...`;
+
+    bleServer = await bleDevice.gatt.connect();
+    const svc = await bleServer.getPrimaryService(SPP_SVC);
+    sppChar   = await svc.getCharacteristic(SPP_CHAR);
+    await sppChar.startNotifications();
+    sppChar.addEventListener('characteristicvaluechanged', onNotification);
+    onConnected();
+
+    // Device is now connected. Execute the Batch Action Pipeline
+    await executeBatchActionsForCurrentDevice(bleDevice.name);
+
+  } catch (err) {
+    if (err.name === 'NotFoundError') {
+      log('Batch selection cancelled by user.', 'log-warn');
+      document.getElementById('batch-status-text').textContent = 'User cancelled selection. Hit Spacebar or Start to resume.';
+    } else {
+      log('Batch connect error: ' + err.message, 'log-err');
+      document.getElementById('batch-status-text').textContent = 'Error: ' + err.message;
+      playBatchChime(false);
+    }
+  }
+}
+
+async function executeBatchActionsForCurrentDevice(devName) {
+  const profile = document.getElementById('batch-profile')?.value;
+  const paramVal = document.getElementById('batch-param-val')?.value?.trim();
+  const statusEl = document.getElementById('batch-status-text');
+
+  statusEl.textContent = `Processing ${devName}...`;
+  log(`[BATCH] Executing action profile [${profile}] on ${devName}`, 'log-info');
+
+  let sentCmds = [];
+  let execSuccess = true;
+
+  try {
+    // 1. Always pull FW Version and current status
+    await send('GET_FW_VERSION');
+    sentCmds.push('GET_FW_VERSION');
+    await new Promise(r => setTimeout(r, 250));
+
+    // 2. Execute selected profile actions
+    if (profile === 'READ_VERIFY') {
+      await send('STATUS');
+      sentCmds.push('STATUS');
+      await new Promise(r => setTimeout(r, 250));
+      await send('GET_METER_ALL');
+      sentCmds.push('GET_METER_ALL');
+      await new Promise(r => setTimeout(r, 400));
+    } else if (profile === 'CFG_INTERVAL') {
+      const iv = parseInt(paramVal) || 900;
+      await send(`SET_INTERVAL=${iv}`);
+      sentCmds.push(`SET_INTERVAL=${iv}`);
+      await new Promise(r => setTimeout(r, 300));
+      await send('STATUS');
+      sentCmds.push('STATUS');
+      await new Promise(r => setTimeout(r, 300));
+    } else if (profile === 'CFG_ALWAYS_ON') {
+      const ao = parseInt(paramVal) || 0;
+      await send(`SET_ALWAYS_ON=${ao}`);
+      sentCmds.push(`SET_ALWAYS_ON=${ao}`);
+      await new Promise(r => setTimeout(r, 300));
+      await send('STATUS');
+      sentCmds.push('STATUS');
+      await new Promise(r => setTimeout(r, 300));
+    } else if (profile === 'CUSTOM') {
+      const rawCmds = document.getElementById('batch-custom-cmds')?.value?.split('\n') || [];
+      for (const c of rawCmds) {
+        const tr = c.trim();
+        if (tr) {
+          await send(tr);
+          sentCmds.push(tr);
+          await new Promise(r => setTimeout(r, 350));
+        }
+      }
+    }
+
+    // Pull floor ID from device name (FL009003 -> Floor 3)
+    let floorId = '—';
+    const m = devName.match(/(?:FL|ST)\d{3}(\d{3})/);
+    if (m) {
+      floorId = parseInt(m[1]);
+      batchProcessedFloors.add(floorId);
+    }
+
+    // Record data row
+    const row = {
+      time: istClock(),
+      name: devName,
+      floor: floorId,
+      fw: document.getElementById('s-fw-ver')?.value || document.getElementById('hdr-fw-ver')?.textContent || '1.5.0',
+      vol: document.getElementById('r-vol')?.textContent || '—',
+      flow: document.getElementById('r-flow')?.textContent || '—',
+      cmds: sentCmds.join(', '),
+      status: 'SUCCESS'
+    };
+    batchRecords.push(row);
+    renderBatchTable();
+    updateBatchCounter();
+    playBatchChime(true);
+
+    statusEl.textContent = `Completed ${devName}! Disconnecting...`;
+    log(`[BATCH] Successfully completed ${devName}`, 'log-info');
+
+    // Cleanly disconnect
+    await new Promise(r => setTimeout(r, 400));
+    if (bleDevice && bleDevice.gatt.connected) {
+      bleDevice.gatt.disconnect();
+    }
+
+    if (batchRunning) {
+      statusEl.textContent = `Ready for next node. Hit Spacebar or click "Next Node"`;
+      log('[BATCH] Ready for next node. Press SPACEBAR to continue.', 'log-info');
+    }
+
+  } catch (err) {
+    execSuccess = false;
+    log(`[BATCH] Error during execution on ${devName}: ${err.message}`, 'log-err');
+    statusEl.textContent = `Error on ${devName}: ${err.message}`;
+    playBatchChime(false);
+  }
+}
+
+function renderBatchTable() {
+  const tbody = document.getElementById('batch-records-tbody');
+  if (!tbody) return;
+  if (batchRecords.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:16px;color:var(--text-dim);">No batch records yet. Connect devices to auto-populate.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = batchRecords.map((r, idx) => `
+    <tr style="border-bottom:1px solid var(--border);background:${idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)'};">
+      <td style="padding:7px 10px;font-family:var(--mono);">${r.time}</td>
+      <td style="padding:7px 10px;font-weight:600;color:#38bdf8;">${r.name}</td>
+      <td style="padding:7px 10px;font-weight:bold;">${r.floor}</td>
+      <td style="padding:7px 10px;font-family:var(--mono);">${r.fw}</td>
+      <td style="padding:7px 10px;font-weight:bold;color:#22c55e;">${r.vol}</td>
+      <td style="padding:7px 10px;">${r.flow}</td>
+      <td style="padding:7px 10px;color:var(--text-dim);font-size:11px;">${r.cmds}</td>
+      <td style="padding:7px 10px;"><span style="background:#14532d;color:#22c55e;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:bold;">OK</span></td>
+    </tr>
+  `).join('');
+}
+
+function exportBatchCsv() {
+  if (batchRecords.length === 0) {
+    alert('No batch records to export yet.');
+    return;
+  }
+  const headers = ['Timestamp', 'Device Name', 'Floor ID', 'Firmware', 'Volume (L)', 'Flow Rate (L/min)', 'Commands Sent', 'Status'];
+  const csvRows = [headers.join(',')];
+  batchRecords.forEach(r => {
+    csvRows.push([
+      `"${r.time}"`,
+      `"${r.name}"`,
+      `"${r.floor}"`,
+      `"${r.fw}"`,
+      `"${r.vol}"`,
+      `"${r.flow}"`,
+      `"${r.cmds.replace(/"/g, '""')}"`,
+      `"${r.status}"`
+    ].join(','));
+  });
+  const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const grp = document.getElementById('batch-target-group')?.value || '9';
+  a.download = `MIRA_Group_${grp}_Batch_Report_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 </script>
 </body>
 </html>
